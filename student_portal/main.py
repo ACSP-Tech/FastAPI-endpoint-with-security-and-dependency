@@ -2,7 +2,7 @@
 from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, EmailStr
-from sec import SECRET_KEY, ALGORITHM
+from sec import SECRET_KEY, ALGORITHM, pwd_context
 from .dep import check_filepath, check_students, auth
 from typing import List
 
@@ -32,6 +32,8 @@ def registration(detail:UserRegistration):
         #reading and loading json file
         with open(file_path, "r") as file:
             old_json = json.load(file)
+        # hash password
+        hashed_password = pwd_context.hash(detail.password)
         #logic to check if email already exist in db case insensitive
         if detail.username.lower().strip() in old_json or any(
             detail.email.lower().strip() == users["email"]
@@ -39,20 +41,23 @@ def registration(detail:UserRegistration):
         ):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="account with that email or and username already exit")
         else:
-            user_out = UserRegOut(
+            if detail.username not in old_json:
+                user_out = UserRegOut(
                 username= detail.username.lower().strip(),
                 email = detail.email.lower().strip(),
                 status = "success"
             )
-            if detail.username not in old_json:
-                old_json[detail.username.lower().strip()] = user_out.model_dump()
+                old_json[detail.username.lower().strip()] = {
+                    "email": detail.email.lower().strip(),
+                    "password": hashed_password
+                }
                 with open(file_path, "w") as file:
                     json.dump(old_json, file)
                 return user_out
             else:
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account with that email already exists")
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="internal server error")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 class Userlogin(BaseModel):
     username: str
@@ -71,6 +76,12 @@ def login(detail:Userlogin):
                 status_code=status.HTTP_409_CONFLICT, 
                 detail="account with that email does not exit, Kindly login instead")
         elif detail.username.lower().strip() in old_json:
+            username_key = detail.username.lower().strip()
+            user = old_json[username_key]
+            hashed = user.get("password")
+            if not hashed or not pwd_context.verify(detail.password, hashed):
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                detail="Invalid username or password")
             payload = {
             "name": detail.username.lower().strip()
             }
@@ -78,7 +89,7 @@ def login(detail:Userlogin):
 
             return {"token": token, "token_type": "bearer"}
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="internal server error")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 class Grade(BaseModel):
     name: str
@@ -110,7 +121,7 @@ def auth_func(token=Depends(auth)):
         )
         return db
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="internal server error")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 

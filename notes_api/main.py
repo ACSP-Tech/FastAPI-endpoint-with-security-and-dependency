@@ -1,6 +1,6 @@
 #importing the necessary requirements
 from fastapi import FastAPI, HTTPException, status, Depends
-from sec import SECRET_KEY, ALGORITHM
+from sec import SECRET_KEY, ALGORITHM, pwd_context
 from .dep import check_filepath, check_user, auth, UserRegistration, UserRegOut, Userlogin, Note, NoteOut
 from datetime import date
 import json
@@ -20,6 +20,8 @@ def registration(detail:UserRegistration):
         #reading and loading json file
         with open(file_path, "r") as file:
             old_json = json.load(file)
+        # hash password
+        hashed_password = pwd_context.hash(detail.password)
         #logic to check if email and username already exist in db case insensitive
         if detail.username.lower().strip() in old_json or any(
             detail.email.lower().strip() == users["email"]
@@ -31,7 +33,10 @@ def registration(detail:UserRegistration):
                 user_out = UserRegOut(
                     email = detail.email.lower().strip(),
                 )
-                old_json[detail.username.lower().strip()] = user_out.model_dump()
+                old_json[detail.username.lower().strip()] = {
+                    "email": detail.email.lower().strip(),
+                    "password": hashed_password
+                }
                 with open(file_path, "w") as file:
                     json.dump(old_json, file)
                 return user_out
@@ -53,6 +58,12 @@ def login(detail:Userlogin):
         if detail.username.lower().strip() not in old_json:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="account with that email or username does not exist")
         elif detail.username.lower().strip() in old_json:
+            username_key = detail.username.lower().strip()
+            user = old_json[username_key]
+            hashed = user.get("password")
+            if not hashed or not pwd_context.verify(detail.password, hashed):
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                detail="Invalid username or password")
             payload = {
             "name": detail.username.lower().strip()
             }

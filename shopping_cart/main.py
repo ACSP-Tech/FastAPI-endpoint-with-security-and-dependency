@@ -1,6 +1,6 @@
 #importing the necessary requirements
 from fastapi import FastAPI, HTTPException, status, Depends
-from sec import SECRET_KEY, ALGORITHM
+from sec import SECRET_KEY, ALGORITHM, pwd_context
 from .auth import check_filepath, check_user, require_admin, get_next_product_id, auth, CartFilepath, UserRegistration, UserRegOut, Userlogin, PromoteUserToAdmin, Product, CartIn
 import json
 import os
@@ -19,6 +19,8 @@ def registration(detail:UserRegistration):
         #reading and loading json file
         with open(file_path, "r") as file:
             old_json = json.load(file)
+        # hash password
+        hashed_password = pwd_context.hash(detail.password)
         #automatic admin seeding logic
         role = "admin" if not old_json else "customer"
         #logic to check if email already exist in db case insensitive
@@ -33,7 +35,11 @@ def registration(detail:UserRegistration):
                     email = detail.email.lower().strip(),
                     role =  role
                 )
-                old_json[detail.username.lower().strip()] = user_out.model_dump()
+                old_json[detail.username.lower().strip()] = {
+                    "email": detail.email.lower().strip(),
+                    "role": role,
+                    "password": hashed_password
+                }
                 with open(file_path, "w") as file:
                     json.dump(old_json, file)
                 return user_out
@@ -55,6 +61,12 @@ def login(detail:Userlogin):
         if detail.username.lower().strip() not in old_json:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="account with that email does not exit, Kindly login instead")
         elif detail.username.lower().strip() in old_json:
+            username_key = detail.username.lower().strip()
+            user = old_json[username_key]
+            hashed = user.get("password")
+            if not hashed or not pwd_context.verify(detail.password, hashed):
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                detail="Invalid username or password")
             payload = {
             "name": detail.username.lower().strip()
             }

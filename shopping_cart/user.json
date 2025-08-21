@@ -1,1 +1,1 @@
-{"precious": {"email": "precious@gmail.com", "role": "admin"}, "saviour": {"email": "kodecamp@gmail.com", "role": "customer"}, "ngozi": {"email": "ngozi@gmail.com", "role": "admin"}, "naza": {"email": "naza@gmail.com", "role": "customer"}}
+{"ngozi": {"email": "ngozi@gmail.com", "role": "admin", "password": "$2b$12$seNxidNl3zyyrv9QbD7fcuT.KcqLuGgNUKGsz2iFjxXkoTl1S52ka"}, "precious": {"email": "precious@gmail.com", "role": "customer", "password": "$2b$12$MAMIj7QVlC6BuQ4BbTWcHuuqd.fhrtPEDqUsYya4wADGUp4E9T7Ia"}}
